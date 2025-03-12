@@ -1,0 +1,294 @@
+---
+title: "Coursework"
+author: "Vinuji Hewapathirana"
+date: "2025-03-08"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(dplyr)
+set.seed(123) # For reproducibility
+```
+
+## Introduction
+
+This report presents a simulation and analysis of a customer queuing system for a bank experiencing high customer footfall. The bank currently operates with two service counters and is considering adding a third counter if the average waiting time exceeds 15 minutes. The simulation aims to model the current system and predict performance with an additional counter.
+
+## Methodology
+
+### Queuing Model Formulation
+
+The bank's queuing system is modeled with the following parameters:
+
+- Customer arrivals follow a Poisson distribution (average rate: 10 customers/hour)
+- Service times follow an Exponential distribution (average service time: 5 minutes/customer)
+- Two service counters, each with a single server
+- First-come, first-served (FCFS) queue discipline
+- Simulation duration: 8-hour workday (480 minutes)
+
+This can be classified as an M/M/2 queuing system where:
+- M: Markovian (Poisson) arrival process
+- M: Markovian (Exponential) service time distribution
+- 2: Number of servers
+
+### Simulation Implementation
+
+```{r}
+# Function to generate inter-arrival times (Poisson arrivals)
+generate_arrivals <- function(rate, total_time) {
+  # Convert rate from customers per hour to customers per minute
+  rate_per_minute <- rate / 60
+  
+  # Generate inter-arrival times using exponential distribution
+  inter_arrival_times <- rexp(1000, rate_per_minute)
+  
+  # Convert to actual arrival times
+  arrival_times <- cumsum(inter_arrival_times)
+  
+  # Keep only arrivals within the simulation time
+  arrival_times <- arrival_times[arrival_times <= total_time]
+  
+  return(arrival_times)
+}
+
+# Function to generate service times (Exponential distribution)
+generate_service_times <- function(mean_service_time, num_customers) {
+  # Generate service times
+  service_times <- rexp(num_customers, 1/mean_service_time)
+  
+  return(service_times)
+}
+
+# Function to simulate the queuing system
+simulate_queue <- function(arrival_times, service_times, num_servers) {
+  num_customers <- length(arrival_times)
+  
+  # Initialize tracking variables
+  waiting_times <- numeric(num_customers)
+  service_start_times <- numeric(num_customers)
+  service_end_times <- numeric(num_customers)
+  
+  # Track each server's availability time
+  server_available_times <- rep(0, num_servers)
+  
+  # Track which server serves which customer
+  server_assignment <- numeric(num_customers)
+  
+  # For each customer
+  for (i in 1:num_customers) {
+    # Find the earliest available server
+    earliest_server <- which.min(server_available_times)
+    
+    # Record which server is serving this customer
+    server_assignment[i] <- earliest_server
+    
+    # Calculate when service can start
+    service_start_times[i] <- max(arrival_times[i], server_available_times[earliest_server])
+    
+    # Calculate waiting time
+    waiting_times[i] <- service_start_times[i] - arrival_times[i]
+    
+    # Calculate service end time
+    service_end_times[i] <- service_start_times[i] + service_times[i]
+    
+    # Update server availability
+    server_available_times[earliest_server] <- service_end_times[i]
+  }
+  
+  # Calculate system exit times
+  exit_times <- service_end_times
+  
+  # Calculate queue lengths at different points in time
+  time_points <- sort(unique(c(arrival_times, service_start_times)))
+  queue_lengths <- numeric(length(time_points))
+  
+  for (t in 1:length(time_points)) {
+    current_time <- time_points[t]
+    in_queue <- sum(arrival_times <= current_time & service_start_times > current_time)
+    queue_lengths[t] <- in_queue
+  }
+  
+  # Calculate server utilization
+  total_busy_time <- numeric(num_servers)
+  for (s in 1:num_servers) {
+    # Find all customers served by this server
+    server_indices <- which(server_assignment == s)
+    if (length(server_indices) > 0) {
+      total_busy_time[s] <- sum(service_end_times[server_indices] - service_start_times[server_indices])
+    } else {
+      total_busy_time[s] <- 0
+    }
+  }
+  
+  # Calculate server utilization using max(exit_times) as total simulation time
+  total_simulation_time <- max(exit_times)
+  server_utilization <- sum(total_busy_time) / (num_servers * total_simulation_time)
+  
+  # Prepare results
+  results <- list(
+    waiting_times = waiting_times,
+    queue_lengths = queue_lengths,
+    time_points = time_points,
+    server_utilization = server_utilization,
+    average_waiting_time = mean(waiting_times),
+    average_queue_length = mean(queue_lengths),
+    max_queue_length = max(queue_lengths),
+    total_customers = num_customers
+  )
+  
+  return(results)
+}
+
+# Run the simulation
+run_simulation <- function(arrival_rate, service_time, simulation_time, num_servers) {
+  # Generate arrivals
+  arrival_times <- generate_arrivals(arrival_rate, simulation_time)
+  
+  # Generate service times
+  service_times <- generate_service_times(service_time, length(arrival_times))
+  
+  # Run simulation
+  results <- simulate_queue(arrival_times, service_times, num_servers)
+  
+  return(results)
+}
+```
+
+### Simulation Execution
+
+```{r}
+# Set parameters
+arrival_rate <- 10  # customers per hour
+service_time <- 5   # minutes per customer
+simulation_time <- 480  # minutes (8-hour workday)
+
+# Run simulation with 2 servers
+results_2_servers <- run_simulation(arrival_rate, service_time, simulation_time, 2)
+
+# Run simulation with 3 servers
+results_3_servers <- run_simulation(arrival_rate, service_time, simulation_time, 3)
+```
+
+## Results and Analysis
+
+### Current System Performance (2 Servers)
+
+```{r}
+# Display key metrics for 2 servers
+cat("Performance with 2 servers:\n")
+cat("Average waiting time:", round(results_2_servers$average_waiting_time, 2), "minutes\n")
+cat("Average queue length:", round(results_2_servers$average_queue_length, 2), "customers\n")
+cat("Maximum queue length:", results_2_servers$max_queue_length, "customers\n")
+cat("Server utilization:", round(results_2_servers$server_utilization * 100, 2), "%\n")
+cat("Total customers served:", results_2_servers$total_customers, "\n")
+```
+
+### Performance with Additional Server (3 Servers)
+
+```{r}
+# Display key metrics for 3 servers
+cat("Performance with 3 servers:\n")
+cat("Average waiting time:", round(results_3_servers$average_waiting_time, 2), "minutes\n")
+cat("Average queue length:", round(results_3_servers$average_queue_length, 2), "customers\n")
+cat("Maximum queue length:", results_3_servers$max_queue_length, "customers\n")
+cat("Server utilization:", round(results_3_servers$server_utilization * 100, 2), "%\n")
+cat("Total customers served:", results_3_servers$total_customers, "\n")
+```
+
+### Visualizations
+
+```{r, fig.width=10, fig.height=5}
+# Create dataframe for waiting time distribution
+waiting_times_df <- data.frame(
+  Waiting_Time = c(results_2_servers$waiting_times, results_3_servers$waiting_times),
+  Servers = factor(c(rep("2 Servers", length(results_2_servers$waiting_times)), 
+                   rep("3 Servers", length(results_3_servers$waiting_times))))
+)
+
+# Histogram of waiting times
+ggplot(waiting_times_df, aes(x = Waiting_Time, fill = Servers)) +
+  geom_histogram(position = "dodge", binwidth = 2, alpha = 0.7) +
+  labs(title = "Distribution of Customer Waiting Times",
+       x = "Waiting Time (minutes)",
+       y = "Number of Customers") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set1")
+```
+
+```{r, fig.width=10, fig.height=5}
+# Create dataframe for queue lengths
+queue_lengths_2 <- data.frame(
+  Time = results_2_servers$time_points,
+  Queue_Length = results_2_servers$queue_lengths,
+  Servers = "2 Servers"
+)
+
+queue_lengths_3 <- data.frame(
+  Time = results_3_servers$time_points,
+  Queue_Length = results_3_servers$queue_lengths,
+  Servers = "3 Servers"
+)
+
+queue_lengths_df <- rbind(queue_lengths_2, queue_lengths_3)
+
+# Line plot of queue lengths
+ggplot(queue_lengths_df, aes(x = Time, y = Queue_Length, color = Servers)) +
+  geom_line() +
+  labs(title = "Queue Length Over Time",
+       x = "Time (minutes)",
+       y = "Queue Length (number of customers)") +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set1")
+```
+
+### Performance Comparison
+
+```{r}
+# Create dataframe for comparison
+comparison_df <- data.frame(
+  Metric = c("Average Waiting Time (min)", "Average Queue Length", "Server Utilization (%)"),
+  Two_Servers = c(round(results_2_servers$average_waiting_time, 2),
+                 round(results_2_servers$average_queue_length, 2),
+                 round(results_2_servers$server_utilization * 100, 2)),
+  Three_Servers = c(round(results_3_servers$average_waiting_time, 2),
+                   round(results_3_servers$average_queue_length, 2),
+                   round(results_3_servers$server_utilization * 100, 2)),
+  Improvement = c(round((results_2_servers$average_waiting_time - results_3_servers$average_waiting_time) / 
+                      results_2_servers$average_waiting_time * 100, 2),
+                round((results_2_servers$average_queue_length - results_3_servers$average_queue_length) / 
+                      results_2_servers$average_queue_length * 100, 2),
+                round((results_2_servers$server_utilization - results_3_servers$server_utilization) / 
+                      results_2_servers$server_utilization * 100, 2))
+)
+
+knitr::kable(comparison_df, caption = "Performance Comparison Between 2 and 3 Servers")
+```
+
+## Discussion and Interpretation
+
+The simulation results provide valuable insights into the bank's current queuing system and the potential impact of adding a third service counter.
+
+With two service counters, our simulation shows that customers wait an average of approximately [insert value] minutes before being served. The average queue length is around [insert value] customers, with a maximum of [insert value] customers observed in the queue at peak times. The server utilization rate of [insert value]% indicates that the current servers are working at high capacity.
+
+According to the bank's criteria, if the average waiting time exceeds 15 minutes, an additional counter should be considered. Our simulation shows that [does/does not] exceed this threshold.
+
+When simulating the system with three service counters, the average waiting time decreases to approximately [insert value] minutes, representing a [insert value]% improvement. The average queue length also decreases to [insert value] customers, and server utilization drops to [insert value]%. This reduction in utilization suggests that servers would have more downtime, but it also provides flexibility to handle unexpected surges in customer arrivals.
+
+The visualization of waiting times shows [describe pattern from histogram]. The queue length over time visualization illustrates [describe pattern from line chart]. These patterns indicate [interpretation of patterns].
+
+## Conclusion and Recommendations
+
+Based on the simulation results and analysis, I recommend that the bank [add/not add] a third service counter. This recommendation is based on the following observations:
+
+1. The current average waiting time of [insert value] minutes [is/is not] above the bank's threshold of 15 minutes.
+2. Adding a third counter would [significantly/marginally] improve customer experience by reducing waiting times by [insert value]%.
+3. The trade-off between improved customer service and the cost of an additional counter should be carefully considered, as server utilization would decrease to [insert value]%.
+
+Alternative strategies that the bank could consider include:
+- Implementing an express lane for customers with simple transactions
+- Adopting a digital queue management system to improve customer perception of waiting time
+- Scheduling more staff during peak hours instead of adding a permanent third counter
+
+In conclusion, the simulation provides evidence that [summarize main finding and recommendation]. Further simulations could explore these alternative strategies to optimize the bank's operations.
