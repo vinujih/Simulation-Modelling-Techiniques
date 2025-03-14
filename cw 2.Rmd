@@ -2,7 +2,9 @@
 title: "CM2605 - CW"
 author: "Vinuji Hewapathirana"
 date: "2025-03-12"
-output: word_document
+output: 
+   word_document:
+    pandoc_args: --mathjax
 ---
 
 ```{r setup, include=FALSE}
@@ -12,16 +14,14 @@ library(dplyr)
 set.seed(123) # For reproducibility
 ```
 
-## Introduction
+# Introduction
 
-The following created model is about a simulation and analysis of a customer queuing system for a bank with heavy customer traffic.
+This model has been implemented using an **M/M/c** queuing system where:  
+- \(M\): Markovian (Poisson) arrival process  
+- \(M\): Markovian (Exponential) service time distribution  
+- \(c\): Number of servers  
 
-This has been done using an M/M/2 queuing system where:
-- M: Markovian (Poisson) arrival process
-- M: Markovian (Exponential) service time distribution
-- 2: Number of servers
-
-## 1. Model
+# 1. Model  
 
 ```{r}
 # Function to generate inter-arrival times (Poisson arrivals)
@@ -144,7 +144,7 @@ run_simulation <- function(arrival_rate, service_time, simulation_time, num_serv
 }
 ```
 
-### Run the model
+## Run the model  
 
 ```{r}
 # Set parameters
@@ -162,9 +162,9 @@ results_3_servers <- run_simulation(arrival_rate, service_time, simulation_time,
 
 
 
-## 2. Results and evaluation
+# 2. Results and evaluation
 
-### System with 2 servers
+## System with 2 servers  
 
 ```{r}
 # Display key metrics for 2 servers
@@ -176,7 +176,7 @@ cat("Server utilization:", round(results_2_servers$server_utilization * 100, 2),
 cat("Total customers served:", results_2_servers$total_customers, "\n")
 ```
 
-### System with 3 servers (Additional server)
+## System with 3 servers (Additional server)  
 
 ```{r}
 # Display key metrics for 3 servers
@@ -188,27 +188,57 @@ cat("Server utilization:", round(results_3_servers$server_utilization * 100, 2),
 cat("Total customers served:", results_3_servers$total_customers, "\n")
 ```
 
-Given below are the final key metrics received after running the model.
+**For this model, following formulas have been used:**  
 
-With 2 severs:
-Average queue length – 0.39 customers
-Average waiting time – 0.81 minutes
-Server utilization – 36.61%
+**The arrival rate \(\lambda\):** 
+\[ \lambda = 10 \text{ customers per hour}\]
 
-With 3 severs:
-Average queue length – 0.12 customers
-Average waiting time – 0.08 minutes
-Server utilization – 27.81%
+**The service rate \(\mu\):**
+\[
+\mu = \frac{1}{\text{mean service time}} = \frac{1}{5 \text{ minutes}} = 12 \text{ customers per hour}
+\]
 
-According to these results, with two service counters the model is running quite well. The customers have to an average of 0.81 minutes (approximately 46 seconds) to get served and the queue length is 0.39 customers. At the peak times, a maximum of 2 customers can be observed in the queue. The server utilization is 36.61% which is quite low, showing that the current resources may be underutilized. Furthermore, the total number of customers that can be served within an 8 hour work day is 76.
+**The traffic intensity \(\rho\)** (we need to find this as we are using multiple servers,  where \(c\) is the number of servers):
+\[
+\rho = \frac{\lambda}{c \mu}
+\]
+
+**The average waiting time in the queue \(W_q\):**
+\[
+W_q = \frac{\rho}{\mu (1 - \rho)}
+\]
+
+**The average number of customers in the queue \(L_q\):**
+\[
+L_q = \frac{\rho^2}{1 - \rho}
+\]
+
+**The server utilization \(U\):**
+\[
+U = \frac{\lambda}{c \mu}
+\]
+
+**Given below are the final key metrics received after running the model.**
+
+**With 2 servers:**  
+- Average queue length – 0.39 customers  
+- Average waiting time – 0.81 minutes  
+- Server utilization – 36.61%  
+
+**With 3 servers:**  
+- Average queue length – 0.12 customers  
+- Average waiting time – 0.08 minutes  
+- Server utilization – 27.81%  
+
+According to these results, with two servers the model is running quite well. The customers have to wait an average time of 0.81 minutes (approximately 46 seconds) to get served and the queue length is 0.39 customers. At the peak times, a maximum of 2 customers can be observed in the queue. The server utilization is 36.61% which is quite low, showing that the current resources may be underutilized. Furthermore, the total number of customers that can be served within an 8 hour work day is 76.  
 With the given specifications, adding another server should be considered if the average waiting time gets above 15 minutes. As the waiting time is around 46 seconds in the model with 2 servers, the current model is running really well and the customers do not need to wait for a long time to get served and the system is handling the customer flow effectively.
 
-However, according to the results we got after running the model with an additional server (total of 3 servers), the average waiting time is 0.08 minutes which has reduced the waiting time for 2 servers by over 90%. The average queue length is 0.12, number of customers that can be observed in the peak time is 2 and total number of customers that can be served within the day is 84. Therefore, average waiting time, queue length, number of maximum customers handled at the peak time and the total number of customers served is better than the model with 2 servers. The server utilization has reduced to 27.81% which suggests potential resource efficiency.
-Although customer experience gets increased with three servers, given that the waiting times are already minimal, this improvement will not be greatly effective. Furthermore, because of the low server utilization, there is a possibility of overstaffing with 3 servers and this would increase the operational cost without much effective benefits
+However, according to the results we got after running the model with an additional server (total of 3 servers), the average waiting time is 0.08 minutes which has reduced the waiting time for 2 servers by over 90%. The average queue length is 0.12, number of customers that can be observed in the peak time is 2 and total number of customers that can be served within the day is 84. Therefore, average waiting time, queue length, number of maximum customers handled at the peak time and the total number of customers served is better than the model with 2 servers. The server utilization has reduced to 27.81% which suggests potential resource efficiency.  
+Although customer experience gets increased with three servers, given that the waiting times are already minimal with two servers, this improvement will not be greatly effective. Furthermore, because of the low server utilization, there is a possibility of overstaffing with 3 servers and this would increase the operational cost without much effective benefits.
 
 
 
-## 3. Visualization & Report
+# 3. Visualization & Report
 
 ## Visualization
 
@@ -257,7 +287,7 @@ ggplot(queue_lengths_df, aes(x = Time, y = Queue_Length, color = Servers)) +
   scale_color_brewer(palette = "Set1")
 ```
 
-### Performance Comparison Table
+## Performance Comparison Table
 
 
 ```{r}
@@ -281,30 +311,31 @@ comparison_df <- data.frame(
 knitr::kable(comparison_df, caption = "Performance Comparison Between 2 and 3 Servers")
 ```
 
-For visualization, following two model have been created through the model to indicate the final results.
+For visualization, following two charts have been created through the model to indicate the final results.
 
-  1.	Distribution of Customer Waiting Times
-This histogram displays the frequency distribution of waiting time of the systems with both 2 servers and 3 servers. Two-server system is shown with red bars and three-server system with blue bars.
-According to this, in the two-server system, the majority of customers (around 72) go through minimal waiting time of nearly 0 minutes. A small group of customers wait around 4 minutes and even smaller group waits for 10 minutes.
-In the three-server system, around 82 customers get a waiting time of 0 minutes and negligible number of customers wait longer than 2 minutes.
-This demonstration shows that with 3 servers customers can experience a better service.
+  **1.	Distribution of Customer Waiting Times**  
+- This histogram displays the frequency distribution of waiting time of the systems with both 2 servers and 3 servers. Two-server system is shown with red bars and three-server system with blue bars.  
+- According to this, in the two-server system, the majority of customers (around 72) go through minimal waiting time of nearly 0 minutes. A small group of customers wait around 4 minutes and even smaller group waits for 10 minutes.  
+- In the three-server system, around 82 customers get a waiting time of 0 minutes and negligible number of customers wait longer than 2 minutes.  
+- This demonstration shows that with 3 servers customers can experience a better service.
  
-   2.	Queue Length Over Time
-The queue length of the two systems throughout the 8 hour working day is demonstrated by the above line chart.
-According to this chart, the two-server system has 0 waiting customers for the majority of the time period and 3 customers at the peak times (30, 420, 450 minutes). This shows an efficient service.
-The tree-server system also has 0 customers waiting for the majority of the time and a maximum of 2 customers at peak times, which is a little better than the two-server system.
-According to these two visualizations, both systems provide excellent service with the three-service system providing marginal improvements resulting in much shorter waiting times and queue lengths.
+   **2.	 Queue Length Over Time**  
+- The queue length of the two systems throughout the 8 hour working day is demonstrated by the above line chart.  
+- According to this chart, the two-server system has 0 waiting customers for the majority of the time period and 3 customers at the peak times (30, 420, 450 minutes). This shows an efficient service.  
+- The three-server system also has 0 customers waiting for the majority of the time and a maximum of 2 customers at peak times, which is a little better than the two-server system.  
+- According to these two visualizations, both systems provide excellent service with the three-service system providing marginal improvements resulting in much shorter waiting times and queue lengths.
 
 
 ## Final Report
 
 This model has used the parameters customer arrivals,  service times and 8 hour simulation time period and implemented through custom functions using to output the arrival times, service times. It has tracked the metrics waiting times, queue lengths and server utilization. 
 
-According to the outputs gained through the model ran for the two system, the first system with two servers perform well with waiting time below than the maximum of 15 minutes. However, the server utilization of 36.61% shows the system is operating well below capacity.
-On the other hand, the system with 3 servers has reduced the waiting time by 90.63% and decreased both queue level and server utilization. The low level of server utilization shows resource efficiency and there is a possibility of overstaffing.
+According to the outputs gained through the model ran for the two systems, the first system with two servers perform well with waiting time which is less than the maximum of 15 minutes. However, the server utilization of 36.61% shows the system is operating well below capacity.  
+On the other hand, the system with 3 servers has reduced the waiting time by 90.63% and decreased both queue level and server utilization. The low level of server utilization shows resource efficiency and there is a possibility of overstaffing which will result in unnecessary expenses.
 
 ### Conclusion and Recommendations
 
-Therefore, the conclusion and recommendations: I will recommend that it is better to maintain the bank with two servers because of the low waiting time. Although the waiting time further drops in the three-server system, the low server utilization shows a possibility of overstaffing and resource underutilization.
+Although the system with three server shows much lower waiting time for the customers, it will result in financial losses because of overstaffing and resource underutilization issues due to low server utilization.  
+Furthermore, as you can see in the performance comparison table, the two server system already results in a good customer experience with low waiting time and better server utilization, making deployment of an additional server inefficient for barely improved measurements.
 
-Instead of implementing a three-server system, the band can implement a digital queue management system with the two-server system. Furthermore, the two-server system already offers a good customer experience, making additional servers inefficient under the current conditions.
+As the conclusion, because of the financial concerns and maximum operational efficiency, I recommend that it is **better to maintain the bank with the two server system**  instead of implementing a system with an additional server.
