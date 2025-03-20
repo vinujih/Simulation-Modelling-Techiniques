@@ -26,53 +26,54 @@ This model has been implemented using an **M/M/c** queuing system where:
 ```{r}
 # Function to calculate inter-arrival times (Poisson arrivals)
 calculate_arrivals <- function(rate, total_time) {
-  # Convert rate from customers per hour to customers per minute
+  # Convert rate from customers per hour to customers per 1 minute
   rate_minute <- rate / 60
   
-  # Calculate inter-arrival times using exponential distribution
+  # Calculate exponential  inter-arrival times using rexp
   inter_arrival_times <- rexp(1000, rate_minute)
   
-  # Convert to actual arrival times
+  # Convert internal arrival times to actual arrival times of customers
   arrival_times <- cumsum(inter_arrival_times)
   
-  # Keep only arrivals within the simulation time
+  # Keep only arrivals within the simulation time (8 hours)
   arrival_times <- arrival_times[arrival_times <= total_time]
   
   return(arrival_times)
 }
 
-# Function to calculate service times (Exponential distribution)
+# Function to calculate service times (exponential)
 calculate_service_times <- function(mean_service_time, customers) {
-  # Caoculate service times
+  # Calculate service times using rexp
+  # Rate = 1/mean_service_time because exponential parameter is the inverse of mean
   service_times <- rexp(customers, 1/mean_service_time)
   
   return(service_times)
 }
 
-# Function to simulate the queuing system
+# Function to simulate the M/M/c queuing system
 simulate_queue <- function(arrival_times, service_times, servers) {
   customers <- length(arrival_times)
   
-  # Initialize tracking variables
-  waiting_times <- numeric(customers)
-  service_start_times <- numeric(customers)
-  service_end_times <- numeric(customers)
+  # Initialize variables
+  waiting_times <- numeric(customers)      #Time spent waiting
+  service_start_times <- numeric(customers)     #Service begins
+  service_end_times <- numeric(customers)       #Service ends
   
-  # Track availability time of each server
+  # Track the time each server gets available again (Initially free at time 0)
   server_available_times <- rep(0, servers)
   
-  # Track which server serves which customer
+  # Track which server handles each customer
   server_assignment <- numeric(customers)
   
-  # For each customer
+  # For each customer (FCFS)
   for (i in 1:customers) {
-    # Earliest available server
+    # Find server that become available first
     earliest_server <- which.min(server_available_times)
     
-    # Record which server is serving this customer
+    # Assign customer to that server
     server_assignment[i] <- earliest_server
     
-    # Calculate when service can start
+    # Calculate when service can start (starts when the server is free or when the customer arrives)
     service_start_times[i] <- max(arrival_times[i], server_available_times[earliest_server])
     
     # Calculate waiting time
@@ -81,37 +82,40 @@ simulate_queue <- function(arrival_times, service_times, servers) {
     # Calculate service end time
     service_end_times[i] <- service_start_times[i] + service_times[i]
     
-    # Update server availability
+    # Update server availability to the service and time
     server_available_times[earliest_server] <- service_end_times[i]
   }
   
-  # Calculate system exit times
+  # Calculate system exit times (same as service end times)
   exit_times <- service_end_times
   
-  # Calculate queue lengths at different points in time
+  # Calculate queue length over time by checking arrivals vs. service starts
   time_points <- sort(unique(c(arrival_times, service_start_times)))
   queue_lengths <- numeric(length(time_points))
   
   for (t in 1:length(time_points)) {
     current_time <- time_points[t]
+    # Queue length = customers who arrived but haven’t started service yet
     in_queue <- sum(arrival_times <= current_time & service_start_times > current_time)
     queue_lengths[t] <- in_queue
   }
   
-  # Calculate server utilization
+  # Calculate server utilization (proportion of time servers are busy)
   total_busy_time <- numeric(servers)
   for (s in 1:servers) {
-    # Find all customers served by this server
+    # Identify all customers served by server (s)
     server_indices <- which(server_assignment == s)
     if (length(server_indices) > 0) {
+      # Total busy time = sum of service durations for this server
       total_busy_time[s] <- sum(service_end_times[server_indices] - service_start_times[server_indices])
     } else {
-      total_busy_time[s] <- 0
+      total_busy_time[s] <- 0 # Server unused if no customers is available
     }
   }
   
-  # Calculate server utilization using max(exit_times) as total simulation time
+  # Calculate total simulation time (is the last customer’s exit time)
   total_simulation_time <- max(exit_times)
+  # Calculate utilization (total busy time across all servers divided by total available time)
   server_utilization <- sum(total_busy_time) / (servers * total_simulation_time)
   
   # Results
@@ -137,7 +141,7 @@ run_simulation <- function(arrival_rate, service_time, simulation_time, servers)
   # Calculate service times
   service_times <- calculate_service_times(service_time, length(arrival_times))
   
-  # Run simulation
+  # Simulate the queuing system and return results
   results <- simulate_queue(arrival_times, service_times, servers)
   
   return(results)
@@ -148,8 +152,8 @@ run_simulation <- function(arrival_rate, service_time, simulation_time, servers)
 
 ```{r}
 # Set parameters
-arrival_rate <- 10  # customers per hour
-service_time <- 5   # minutes per customer
+arrival_rate <- 10  # customers per hour (poisson lambda)
+service_time <- 5   # minutes per customer (exponential mean)
 simulation_time <- 480  # minutes (8-hour workday)
 
 # Run simulation with 2 servers
@@ -188,7 +192,7 @@ cat("Server utilization:", round(results_3_servers$server_utilization * 100, 2),
 cat("Total customers served:", results_3_servers$total_customers, "\n")
 ```
 
-**For this model, following formulas have been used:**  
+**Formulas used:**  
 
 **The arrival rate \(\lambda\):** 
 \[ \lambda = 10 \text{ customers per hour}\]
@@ -198,7 +202,7 @@ cat("Total customers served:", results_3_servers$total_customers, "\n")
 \mu = \frac{1}{\text{mean service time}} = \frac{1}{5 \text{ minutes}} = 12 \text{ customers per hour}
 \]
 
-**The traffic intensity \(\rho\)** (we need to find this as we are using multiple servers,  where \(c\) is the number of servers):
+**The traffic intensity \(\rho\)** (because of using multiple servers, here \(c\) is the number of servers):
 \[
 \rho = \frac{\lambda}{c \mu}
 \]
@@ -213,19 +217,19 @@ W_q = \frac{\rho}{\mu (1 - \rho)}
 L_q = \frac{\rho^2}{1 - \rho}
 \]
 
-**The server utilization \(U\)** (although the theoretical traffic intensity is also similar to this, here actual observed utilization is measured by tracking server busy time):
+**The server utilization \(U\)** (similar to traffic intensity , here actual observed utilization is measured by tracking server busy time):
 \[
 U = \frac{\lambda}{c \mu}
 \]
 
-**Given below are the final key metrics received after running the model.**
+**Final key metrics received.**
 
-**With 2 servers:**  
+**2 servers:**  
 - Average queue length – 0.39 customers  
 - Average waiting time – 0.81 minutes  
 - Server utilization – 36.61%  
 
-**With 3 servers:**  
+**3 servers:**  
 - Average queue length – 0.12 customers  
 - Average waiting time – 0.08 minutes  
 - Server utilization – 27.81%  
@@ -234,7 +238,8 @@ According to these results, with two servers the model is running quite well. Th
 With the given specifications, adding another server should be considered if the average waiting time gets above 15 minutes. As the waiting time is around 46 seconds in the model with 2 servers, the current model is running really well and the customers do not need to wait for a long time to get served and the system is handling the customer flow effectively.
 
 However, according to the results we got after running the model with an additional server (total of 3 servers), the average waiting time is 0.08 minutes which has reduced the waiting time for 2 servers by over 90%. The average queue length is 0.12, number of customers that can be observed in the peak time is 2 and total number of customers that can be served within the day is 84. Therefore, average waiting time, queue length, number of maximum customers handled at the peak time and the total number of customers served is better than the model with 2 servers. The server utilization has reduced to 27.81% which suggests potential resource efficiency.  
-Although customer experience gets increased with three servers, given that the waiting times are already minimal with two servers, this improvement will not be greatly effective. Furthermore, because of the low server utilization, there is a possibility of overstaffing with 3 servers and this would increase the operational cost without much effective benefits.
+
+Although the customer experience gets increased with three servers, given that the waiting times are already minimal with two servers fulfilling the requirements of the bank manager **(he considers adding an additional server, only if the waiting tome exceeds 15 minutes)** and higher server utilization compared to the 3 server system, this improvement will not be greatly effective. Furthermore, because of the low server utilization, there is a possibility of overstaffing with 3 servers and this would increase the operational cost without much effective benefits.
 
 
 
@@ -311,31 +316,31 @@ comparison_df <- data.frame(
 knitr::kable(comparison_df, caption = "Performance Comparison Between 2 and 3 Servers")
 ```
 
-For visualization, following two charts have been created through the model to indicate the final results.
+For visualization, following two charts have been created through the model ran for the two systems.
 
   **1.	Distribution of Customer Waiting Times**  
-- This histogram displays the frequency distribution of waiting time of the systems with both 2 servers and 3 servers. Two-server system is shown with red bars and three-server system with blue bars.  
+- This histogram displays the frequency distribution of waiting time of the systems with both 2 servers (red) and 3 servers (blue).  
 - According to this, in the two-server system, the majority of customers (around 65) go through minimal waiting time of nearly 0 minutes. A small group of customers wait around 4 minutes and even smaller group waits for 10 minutes.  
 - In the three-server system, around 82 customers get a waiting time of 0 minutes and negligible number of customers wait longer than 2 minutes.  
 - This demonstration shows that with 3 servers customers can experience a better service.
  
    **2.	 Queue Length Over Time**  
-- The queue length of the two systems throughout the 8 hour working day is demonstrated by the above line chart.  
-- According to this chart, the two-server system has 0 waiting customers for the majority of the time period and 3 customers at the peak times (30, 420 minutes). This shows an efficient service.  
+- The queue length of the two systems throughout the 8 hour working day is demonstrated by the given line chart.  
+- According to this chart, the two-server system has 0 waiting customers for the majority of the time period and 3 customers at the peak times (30, 420 minutes).    
 - The three-server system also has 0 customers waiting for the majority of the time and a maximum of 2 customers at peak times, which is a little better than the two-server system.  
-- According to these two visualizations, both systems provide excellent service with the three-service system providing marginal improvements resulting in much shorter waiting times and queue lengths.
+- According to these two visualizations, both systems provide excellent service with the three-server system providing marginal improvements resulting in much shorter waiting times and queue lengths.
 
 
 ## Final Report
 
-This model has used the parameters customer arrivals,  service times and 8 hour simulation time period and implemented through custom functions using to output the arrival times and service times. It has tracked the metrics waiting times, queue lengths and server utilization. 
+This model has used the parameters such as customer arrivals,  service times and 8 hour simulation time period and implemented through custom functions using to output the arrival times and service times. It has resulted in the metrics waiting times, queue lengths and server utilization. 
 
-According to the outputs gained through the model ran for the two systems, the first system with two servers perform well with waiting time which is less than the maximum of 15 minutes. However, the server utilization of 36.61% shows the system is operating well below capacity.  
+According to the outputs gained through the model ran for the two systems, the first system with two servers perform well with waiting times. However, the server utilization of 36.61% shows the system is operating well below capacity.  
 On the other hand, the system with 3 servers has reduced the waiting time by 90.63% and decreased both queue level and server utilization. The low level of server utilization shows a issue related to resource efficiency and there is a possibility of overstaffing which will result in unnecessary expenses.
 
 ### Conclusion and Recommendations
 
 Although the system with three server shows much lower waiting time for the customers, it will result in financial losses because of overstaffing and resource under-utilization issues due to low server utilization.  
-Furthermore, as you can see in the performance comparison table, the two server system already results in a good customer experience with low waiting time and better server utilization, making deployment of an additional server inefficient for barely improved measurements.
+Furthermore, as you can see in the performance comparison table, the two server system already results in a good customer experience with low waiting time fulfilling the criteria of having waiting time less than 15 minutes and better server utilization, making deployment of an additional server inefficient for barely improved measurements considering the unwanted expenses.
 
 As the conclusion, because of the financial concerns and maximum operational efficiency, I recommend that it is **better to maintain the bank with the two server system**  instead of implementing a system with an additional server.
